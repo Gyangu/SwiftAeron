@@ -1,7 +1,6 @@
 import Foundation
 import SwiftAeronClient
 
-@main
 struct AeronSwiftTest {
     static func main() async {
         let args = CommandLine.arguments
@@ -15,6 +14,21 @@ struct AeronSwiftTest {
             print("  reliable_sender <host> <port> <message_size> <message_count>")
             print("  reliable_receiver <port> <expected_messages>")
             print("  loss_test <host> <port> <message_size> <message_count> <loss_rate>")
+            print("  aeron_publisher <host> <port> <message_size> <message_count>")
+            print("  aeron_subscriber <port> <expected_messages>")
+            print("  aeron_zerocopy <host> <port> <message_size> <message_count>")
+            print("  aeron_bidirectional <pub_host> <pub_port> <sub_port> <msg_size> <msg_count>")
+            print("  aeron_compatible_pub <host> <port> <stream_id> <session_id> <msg_size> <msg_count>")
+            print("  aeron_compatible_sub <port> <stream_id> <expected_messages>")
+            print("  aeron_compatible_bidir <pub_host> <pub_port> <sub_port> <stream_id> <session_id> <msg_size> <msg_count>")
+            print("  aeron_benchmark <host> <port> <stream_id> <session_id>")
+            print("  hp_aeron_pub <host> <port> <stream_id> <session_id> <msg_size> <msg_count> [batch_size]")
+            print("  hp_aeron_sub <port> <stream_id> <expected_messages>")
+            print("  hp_aeron_benchmark <host> <port> <stream_id> <session_id>")
+            print("  hp_aeron_bidir <pub_host> <pub_port> <sub_port> <stream_id> <session_id> <msg_size> <msg_count>")
+            print("  optimized_aeron <host> <port> <stream_id> <session_id> <msg_size> <msg_count>")
+            print("  bottleneck_optimized <host> <port> <stream_id> <session_id> <msg_size> <msg_count>")
+            print("  bidirectional_optimized <pub_host> <pub_port> <sub_port> <stream_id> <session_id> <msg_size> <msg_count>")
             return
         }
         
@@ -34,6 +48,36 @@ struct AeronSwiftTest {
                 try await runReliableReceiver(args: Array(args.dropFirst(2)))
             case "loss_test":
                 try await runLossTest(args: Array(args.dropFirst(2)))
+            case "aeron_publisher":
+                try await runAeronPublisher(args: Array(args.dropFirst(2)))
+            case "aeron_subscriber":
+                try await runAeronSubscriber(args: Array(args.dropFirst(2)))
+            case "aeron_zerocopy":
+                try await runAeronZeroCopy(args: Array(args.dropFirst(2)))
+            case "aeron_bidirectional":
+                try await runAeronBidirectional(args: Array(args.dropFirst(2)))
+            case "aeron_compatible_pub":
+                try await runAeronCompatiblePublisher(args: Array(args.dropFirst(2)))
+            case "aeron_compatible_sub":
+                try await runAeronCompatibleSubscriber(args: Array(args.dropFirst(2)))
+            case "aeron_compatible_bidir":
+                try await runAeronCompatibleBidirectional(args: Array(args.dropFirst(2)))
+            case "aeron_benchmark":
+                try await runAeronBenchmark(args: Array(args.dropFirst(2)))
+            case "hp_aeron_pub":
+                try await runHighPerformancePublisher(args: Array(args.dropFirst(2)))
+            case "hp_aeron_sub":
+                try await runHighPerformanceSubscriber(args: Array(args.dropFirst(2)))
+            case "hp_aeron_benchmark":
+                try await runHighPerformanceBenchmark(args: Array(args.dropFirst(2)))
+            case "hp_aeron_bidir":
+                try await runHighPerformanceBidirectional(args: Array(args.dropFirst(2)))
+            case "optimized_aeron":
+                try await runOptimizedAeron(args: Array(args.dropFirst(2)))
+            case "bottleneck_optimized":
+                try await runBottleneckOptimized(args: Array(args.dropFirst(2)))
+            case "bidirectional_optimized":
+                try await runBidirectionalOptimized(args: Array(args.dropFirst(2)))
             default:
                 print("Unknown mode: \(mode)")
             }
@@ -143,7 +187,7 @@ struct AeronSwiftTest {
             messageCount: messageCount
         )
         
-        let result = try await test.runTest()
+        let result = try await test.runPublisherTest()
         result.printResults()
     }
     
@@ -186,4 +230,264 @@ struct AeronSwiftTest {
             lossRate: lossRate
         )
     }
+    
+    // MARK: - 真正的Aeron测试方法
+    
+    static func runAeronPublisher(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let messageSize = Int(args.count > 2 ? args[2] : "65536") ?? 65536  // 64KB
+        let messageCount = Int(args.count > 3 ? args[3] : "1000") ?? 1000
+        
+        let test = AeronPerformanceTest(
+            host: host,
+            port: port,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+        
+        let result = try await test.runPublisherTest()
+        result.printResults()
+    }
+    
+    static func runAeronSubscriber(args: [String]) async throws {
+        let port = UInt16(args.count > 0 ? args[0] : "40001") ?? 40001
+        let expectedMessages = Int(args.count > 1 ? args[1] : "1000") ?? 1000
+        
+        let test = AeronPerformanceTest(
+            host: "127.0.0.1",
+            port: port,
+            messageSize: 1024,
+            messageCount: 1
+        )
+        
+        let result = try await test.runSubscriberTest(expectedMessages: expectedMessages)
+        result.printResults()
+    }
+    
+    static func runAeronZeroCopy(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let messageSize = Int(args.count > 2 ? args[2] : "65536") ?? 65536
+        let messageCount = Int(args.count > 3 ? args[3] : "1000") ?? 1000
+        
+        let test = AeronPerformanceTest(
+            host: host,
+            port: port,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+        
+        let result = try await test.runZeroCopyTest()
+        result.printResults()
+    }
+    
+    static func runAeronBidirectional(args: [String]) async throws {
+        let publishHost = args.count > 0 ? args[0] : "127.0.0.1"
+        let publishPort = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let subscribePort = UInt16(args.count > 2 ? args[2] : "40002") ?? 40002
+        let messageSize = Int(args.count > 3 ? args[3] : "65536") ?? 65536
+        let messageCount = Int(args.count > 4 ? args[4] : "1000") ?? 1000
+        
+        try await AeronBidirectionalTest.runBidirectionalPerformanceTest(
+            publishHost: publishHost,
+            publishPort: publishPort,
+            subscribePort: subscribePort,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
+    
+    // MARK: - Aeron兼容性测试方法
+    
+    static func runAeronCompatiblePublisher(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 2 ? args[2] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 3 ? args[3] : "1") ?? 1
+        let messageSize = Int(args.count > 4 ? args[4] : "1024") ?? 1024
+        let messageCount = Int(args.count > 5 ? args[5] : "10000") ?? 10000
+        
+        try await AeronCompatibilityTest.runCompatiblePublisher(
+            host: host,
+            port: port,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
+    
+    static func runAeronCompatibleSubscriber(args: [String]) async throws {
+        let port = UInt16(args.count > 0 ? args[0] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 1 ? args[1] : "1001") ?? 1001
+        let expectedMessages = Int(args.count > 2 ? args[2] : "10000") ?? 10000
+        
+        try await AeronCompatibilityTest.runCompatibleSubscriber(
+            port: port,
+            streamId: streamId,
+            expectedMessages: expectedMessages
+        )
+    }
+    
+    static func runAeronCompatibleBidirectional(args: [String]) async throws {
+        let publishHost = args.count > 0 ? args[0] : "127.0.0.1"
+        let publishPort = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let subscribePort = UInt16(args.count > 2 ? args[2] : "40002") ?? 40002
+        let streamId = UInt32(args.count > 3 ? args[3] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 4 ? args[4] : "1") ?? 1
+        let messageSize = Int(args.count > 5 ? args[5] : "1024") ?? 1024
+        let messageCount = Int(args.count > 6 ? args[6] : "10000") ?? 10000
+        
+        try await AeronCompatibilityTest.runBidirectionalCompatibilityTest(
+            publishHost: publishHost,
+            publishPort: publishPort,
+            subscribePort: subscribePort,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
+    
+    static func runAeronBenchmark(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 2 ? args[2] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 3 ? args[3] : "1") ?? 1
+        
+        try await AeronCompatibilityTest.runPerformanceBenchmark(
+            host: host,
+            port: port,
+            streamId: streamId,
+            sessionId: sessionId
+        )
+    }
+    
+    // MARK: - 高性能测试方法
+    
+    static func runHighPerformancePublisher(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 2 ? args[2] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 3 ? args[3] : "1") ?? 1
+        let messageSize = Int(args.count > 4 ? args[4] : "1024") ?? 1024
+        let messageCount = Int(args.count > 5 ? args[5] : "10000") ?? 10000
+        let batchSize = Int(args.count > 6 ? args[6] : "1000") ?? 1000
+        
+        try await HighPerformanceAeronTest.runHighPerformancePublisher(
+            host: host,
+            port: port,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount,
+            batchSize: batchSize
+        )
+    }
+    
+    static func runHighPerformanceSubscriber(args: [String]) async throws {
+        let port = UInt16(args.count > 0 ? args[0] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 1 ? args[1] : "1001") ?? 1001
+        let expectedMessages = Int(args.count > 2 ? args[2] : "10000") ?? 10000
+        
+        try await HighPerformanceAeronTest.runHighPerformanceSubscriber(
+            port: port,
+            streamId: streamId,
+            expectedMessages: expectedMessages
+        )
+    }
+    
+    static func runHighPerformanceBenchmark(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 2 ? args[2] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 3 ? args[3] : "1") ?? 1
+        
+        try await HighPerformanceAeronTest.runHighPerformanceBenchmark(
+            host: host,
+            port: port,
+            streamId: streamId,
+            sessionId: sessionId
+        )
+    }
+    
+    static func runHighPerformanceBidirectional(args: [String]) async throws {
+        let publishHost = args.count > 0 ? args[0] : "127.0.0.1"
+        let publishPort = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let subscribePort = UInt16(args.count > 2 ? args[2] : "40002") ?? 40002
+        let streamId = UInt32(args.count > 3 ? args[3] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 4 ? args[4] : "1") ?? 1
+        let messageSize = Int(args.count > 5 ? args[5] : "1024") ?? 1024
+        let messageCount = Int(args.count > 6 ? args[6] : "10000") ?? 10000
+        
+        try await HighPerformanceAeronTest.runHighPerformanceBidirectional(
+            publishHost: publishHost,
+            publishPort: publishPort,
+            subscribePort: subscribePort,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
+    
+    static func runOptimizedAeron(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 2 ? args[2] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 3 ? args[3] : "1") ?? 1
+        let messageSize = Int(args.count > 4 ? args[4] : "1024") ?? 1024
+        let messageCount = Int(args.count > 5 ? args[5] : "10000") ?? 10000
+        
+        try await OptimizedAeronTest.runOptimizedTest(
+            host: host,
+            port: port,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
+    
+    static func runBottleneckOptimized(args: [String]) async throws {
+        let host = args.count > 0 ? args[0] : "127.0.0.1"
+        let port = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let streamId = UInt32(args.count > 2 ? args[2] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 3 ? args[3] : "1") ?? 1
+        let messageSize = Int(args.count > 4 ? args[4] : "1024") ?? 1024
+        let messageCount = Int(args.count > 5 ? args[5] : "10000") ?? 10000
+        
+        try await BottleneckOptimizedTest.runOptimizedPerformanceTest(
+            host: host,
+            port: port,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
+    
+    static func runBidirectionalOptimized(args: [String]) async throws {
+        let publishHost = args.count > 0 ? args[0] : "127.0.0.1"
+        let publishPort = UInt16(args.count > 1 ? args[1] : "40001") ?? 40001
+        let subscribePort = UInt16(args.count > 2 ? args[2] : "40002") ?? 40002
+        let streamId = UInt32(args.count > 3 ? args[3] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 4 ? args[4] : "1") ?? 1
+        let messageSize = Int(args.count > 5 ? args[5] : "1024") ?? 1024
+        let messageCount = Int(args.count > 6 ? args[6] : "5000") ?? 5000
+        
+        try await BidirectionalOptimizedTest.runBidirectionalPerformanceTest(
+            publishHost: publishHost,
+            publishPort: publishPort,
+            subscribePort: subscribePort,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
 }
+
+// Execute the main function
+await AeronSwiftTest.main()
