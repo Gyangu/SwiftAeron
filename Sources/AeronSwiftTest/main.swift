@@ -29,6 +29,8 @@ struct AeronSwiftTest {
             print("  optimized_aeron <host> <port> <stream_id> <session_id> <msg_size> <msg_count>")
             print("  bottleneck_optimized <host> <port> <stream_id> <session_id> <msg_size> <msg_count>")
             print("  bidirectional_optimized <pub_host> <pub_port> <sub_port> <stream_id> <session_id> <msg_size> <msg_count>")
+            print("  ipc_aeron <socket_path> <stream_id> <session_id> <msg_size> <msg_count>")
+            print("  swift_ipc_receiver <socket_path> <expected_count>")
             return
         }
         
@@ -78,6 +80,10 @@ struct AeronSwiftTest {
                 try await runBottleneckOptimized(args: Array(args.dropFirst(2)))
             case "bidirectional_optimized":
                 try await runBidirectionalOptimized(args: Array(args.dropFirst(2)))
+            case "ipc_aeron":
+                try await runIPCAeron(args: Array(args.dropFirst(2)))
+            case "swift_ipc_receiver":
+                try await runSwiftIPCReceiver(args: Array(args.dropFirst(2)))
             default:
                 print("Unknown mode: \(mode)")
             }
@@ -485,6 +491,32 @@ struct AeronSwiftTest {
             sessionId: sessionId,
             messageSize: messageSize,
             messageCount: messageCount
+        )
+    }
+    
+    static func runIPCAeron(args: [String]) async throws {
+        let socketPath = args.count > 0 ? args[0] : "/tmp/aeron_ipc.sock"
+        let streamId = UInt32(args.count > 1 ? args[1] : "1001") ?? 1001
+        let sessionId = UInt32(args.count > 2 ? args[2] : "1") ?? 1
+        let messageSize = Int(args.count > 3 ? args[3] : "1024") ?? 1024
+        let messageCount = Int(args.count > 4 ? args[4] : "10000") ?? 10000
+        
+        try await IPCTestCommand.runIPCPerformanceTest(
+            socketPath: socketPath,
+            streamId: streamId,
+            sessionId: sessionId,
+            messageSize: messageSize,
+            messageCount: messageCount
+        )
+    }
+    
+    static func runSwiftIPCReceiver(args: [String]) async throws {
+        let socketPath = args.count > 0 ? args[0] : "/tmp/swift_ipc.sock"
+        let expectedCount = Int(args.count > 1 ? args[1] : "10000") ?? 10000
+        
+        try await SwiftIPCReceiverTest.runSwiftIPCReceiver(
+            socketPath: socketPath,
+            expectedCount: expectedCount
         )
     }
 }
